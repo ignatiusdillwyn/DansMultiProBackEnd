@@ -4,13 +4,15 @@ import {
   Post,
   Body,
   HttpException,
-  HttpStatus
+  HttpStatus,
+  Inject
 } from '@nestjs/common';
 import { AppService } from './app.service';
+import { KafkaService } from './kafka/kafka.service';
 
 @Controller('leads')
 export class AppController {
-  constructor(private readonly appService: AppService) { }
+  constructor(private readonly appService: AppService, @Inject(KafkaService) private readonly kafkaService: KafkaService,) { }
 
   @Get('getLeads')
   async getAllLeads() {
@@ -42,6 +44,20 @@ export class AppController {
     try {
       if (body.campaignId && body.name && body.email) {
         const lead = await this.appService.createLead(body);
+
+        // Publish message to Kafka
+        const kafkaMessage = {
+          eventType: 'LEAD_CREATED',
+          timestamp: new Date().toISOString(),
+          data: {
+            email: body.email,
+            name: body.name,
+            campaignId: body.campaignId,
+          },
+        };
+
+        await this.kafkaService.sendMessage('lead-events', kafkaMessage);
+        console.log(`Lead event published for email: ${lead.email}`);
         return {
           status: 200,
           data: lead,
