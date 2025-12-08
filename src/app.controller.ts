@@ -9,10 +9,17 @@ import {
 } from '@nestjs/common';
 import { AppService } from './app.service';
 import { KafkaService } from './kafka/kafka.service';
+import { HttpService } from '@nestjs/axios';
+import { catchError, firstValueFrom } from 'rxjs';
+
 
 @Controller('leads')
 export class AppController {
-  constructor(private readonly appService: AppService, @Inject(KafkaService) private readonly kafkaService: KafkaService,) { }
+  constructor(
+    private readonly appService: AppService, 
+    private readonly httpService: HttpService,
+    @Inject(KafkaService) private readonly kafkaService: KafkaService, 
+  ) { }
 
   @Get('getLeads')
   async getAllLeads() {
@@ -78,6 +85,48 @@ export class AppController {
       }
       throw new HttpException(
         'Failed to create lead',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @Post('checkWord')
+  async checkWordSentiment(
+    @Body()
+    body: {
+      text: string;
+    }
+  ) {
+    try {
+      console.log('Check Word');
+
+       const requestData = {
+        text: body.text,
+      };
+
+      const response = await firstValueFrom(
+        this.httpService.post('http://localhost:5000/analyze', requestData)
+          .pipe(
+            catchError((error) => {
+              console.error('Error calling external API:', error.response?.data || error.message);
+              throw new HttpException(
+                'Failed to analyze text',
+                HttpStatus.BAD_GATEWAY
+              );
+            })
+          )
+      );
+
+      const analysisResult = response.data;
+
+      return {
+        status: 200,
+        data: analysisResult,
+        message: 'Analysis completed successfully'
+      };
+    } catch (error) {
+      throw new HttpException(
+        'Failed to retrieve leads',
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
