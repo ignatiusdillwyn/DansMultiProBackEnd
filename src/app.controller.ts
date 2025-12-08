@@ -126,7 +126,7 @@ export class AppController {
       };
     } catch (error) {
       throw new HttpException(
-        'Failed to retrieve leads',
+        'Failed to check word sentiment',
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
